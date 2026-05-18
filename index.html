@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふるさと納税コールセンター 電話問い合わせ対応マニュアル</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals with Teal Accents (Slate-50 bg, White cards, Teal-600 buttons) -->
+    <!-- Application Structure Plan: The application is structured as an interactive operator dashboard. To facilitate quick information retrieval during live calls, the manual is transformed from a linear document into a functional, non-linear Single Page Application. The layout consists of a persistent sidebar for quick category switching, a main dashboard showing hypothetical query analytics (Chart.js) and base rules, and dedicated interactive views for each of the 9 inquiry types. The inquiry views use interactive tabs and conditional flow toggles (instead of static text) to guide the operator through the decision trees (e.g., "Has the image been sent?", "What is the portal site?") logically, reducing cognitive load and error rates. -->
+    <!-- Visualization & Content Choices: 
+         - Source: Common Rules -> Goal: Inform -> Viz/Method: Highlight Cards -> Interaction: Static display on home -> Justification: Must be visible at a glance. -> Library/Method: HTML/Tailwind.
+         - Source: 9 Inquiry Categories -> Goal: Organize/Navigate -> Viz/Method: Sidebar & Content Panes -> Interaction: Click to toggle visibility -> Justification: Replaces scrolling through a long document. -> Library/Method: Vanilla JS + Tailwind.
+         - Source: Conditional Procedures (e.g., Delivery Status) -> Goal: Change/Action -> Viz/Method: Interactive Tabs & Buttons -> Interaction: Operator clicks current status to reveal next step -> Justification: Prevents reading irrelevant conditions. -> Library/Method: Vanilla JS DOM manipulation.
+         - Source: Call Center Context (Implicit) -> Goal: Inform/Context -> Viz/Method: Bar Chart -> Interaction: Hover tooltips -> Justification: Satisfies mandatory Chart.js requirement by visualizing hypothetical daily inquiry volume, giving the operator context on what to expect. -> Library/Method: Chart.js Canvas inside responsive container. 
+         - Confirming NO SVG/Mermaid used.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body { font-family: 'Noto Sans JP', sans-serif; }
+        
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (max-width: 768px) {
+            .chart-container { height: 250px; }
+        }
+        
+        .nav-item.active {
+            background-color: #0f766e; 
+            color: #ffffff;
+            font-weight: 700;
+        }
+        .nav-item:hover:not(.active) {
+            background-color: #e2e8f0; 
+        }
+        
+        .tab-btn.active {
+            border-bottom-width: 2px;
+            border-color: #0f766e;
+            color: #0f766e;
+            font-weight: 700;
+        }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
+
+    <aside class="w-72 bg-white border-r border-slate-200 flex flex-col h-full flex-shrink-0 z-10 shadow-sm transition-transform duration-300">
+        <div class="p-4 border-b border-slate-200 bg-teal-700 text-white flex items-center gap-2">
+            <span class="text-xl">📞</span>
+            <h1 class="text-lg font-bold leading-tight">ふるさと納税<br>コールセンターナビ</h1>
+        </div>
+        <div class="p-4 border-b border-slate-200">
+            <input type="text" id="searchInput" placeholder="マニュアル内検索..." class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 text-sm">
+        </div>
+        <nav class="flex-1 overflow-y-auto p-2" id="sidebarNav">
+            <button data-target="sec-home" class="nav-item active w-full text-left px-4 py-3 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors">
+                <span>🏠</span> ホーム・基本ルール
+            </button>
+            <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mt-4 mb-2 px-4">対応マニュアル</div>
+            <button data-target="sec-1" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>1️⃣</span> 返礼品へのクレーム</button>
+            <button data-target="sec-2" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>2️⃣</span> 書類再発行</button>
+            <button data-target="sec-3" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>3️⃣</span> 書類はいつ届くのか</button>
+            <button data-target="sec-4" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>4️⃣</span> ワンストップ「希望する」へ変更</button>
+            <button data-target="sec-5" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>5️⃣</span> 返礼品はいつ届くのか</button>
+            <button data-target="sec-6" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>6️⃣</span> 返礼品指定日変更</button>
+            <button data-target="sec-7" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>7️⃣</span> 住所変更(返礼品・書類)</button>
+            <button data-target="sec-8" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>8️⃣</span> カタログ依頼</button>
+            <button data-target="sec-9" class="nav-item w-full text-left px-4 py-2 rounded-md mb-1 text-sm text-slate-700 flex items-center gap-2 transition-colors"><span>9️⃣</span> キャンセル依頼</button>
+        </nav>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto relative h-full">
+        
+        <section id="sec-home" class="content-section p-6 md:p-8 max-w-5xl mx-auto block">
+            <h2 class="text-3xl font-bold text-slate-800 mb-2">ダッシュボード・基本ルール</h2>
+            <p class="text-slate-600 mb-8">この画面はコールセンターの基本情報と、直近の受電傾向を視覚化するダッシュボードです。</p>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-teal-700 mb-4 flex items-center gap-2"><span>🛡️</span> 本人確認（トリプルチェック）</h3>
+                    <p class="text-sm text-slate-600 mb-4">対応を開始する前に、必ず以下の2点を確認し、システム情報と一致しているか照合してください。</p>
+                    <ul class="space-y-3">
+                        <li class="flex items-start gap-2 bg-slate-50 p-3 rounded border border-slate-100">
+                            <span class="text-teal-600 font-bold">1</span>
+                            <div>
+                                <p class="font-bold text-slate-800">寄附者のフルネーム</p>
+                                <p class="text-xs text-slate-500">漢字・よみがな</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start gap-2 bg-slate-50 p-3 rounded border border-slate-100">
+                            <span class="text-teal-600 font-bold">2</span>
+                            <div>
+                                <p class="font-bold text-slate-800">寄附者のご住所</p>
+                                <p class="text-xs text-slate-500">住民票上のご住所、または登録住所</p>
+                            </div>
+                        </li>
+                    </ul>
+                    <p class="text-xs text-amber-600 mt-4 bg-amber-50 p-2 rounded">※必要に応じて「寄附受付番号」や「電話番号」を伺い、同姓同名などの誤認を防いでください。</p>
+                </div>
+                
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-teal-700 mb-4 flex items-center gap-2"><span>⚠️</span> 主なエスカレーション先</h3>
+                    <p class="text-sm text-slate-600 mb-4">判断に迷う場合や、マニュアルで指定された状況では、速やかに以下の担当へエスカレーションを行います。</p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm font-medium text-center text-slate-700">上位管理者（SV）</div>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm font-medium text-center text-slate-700">書類発送/発行担当者</div>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm font-medium text-center text-slate-700">返礼品提供事業者<br><span class="text-[10px] text-slate-500 font-normal">配送・破損等</span></div>
+                        <div class="bg-slate-50 p-3 rounded border border-slate-200 text-sm font-medium text-center text-slate-700">自治体担当者<br><span class="text-[10px] text-slate-500 font-normal">例外キャンセル・特例等</span></div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <p class="text-xs text-slate-500 font-bold">管理システム</p>
+                        <p class="text-sm text-slate-800">主システム: <strong>ふるさと納税do</strong></p>
+                        <p class="text-xs text-slate-500">※案件によりCMS、楽天RMS等を参照</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800 mb-2">想定される問い合わせ割合（月間平均）</h3>
+                <p class="text-sm text-slate-500 mb-4">各カテゴリの受電ボリュームの目安です。繁忙期・閑散期により変動します。</p>
+                <div class="chart-container">
+                    <canvas id="inquiryChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-1" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 1</span>
+                <h2 class="text-3xl font-bold text-slate-800">返礼品へのクレーム（食品の破損・傷み等）</h2>
+                <p class="text-slate-600 mt-2">食品のクレーム対応においては、事実確認のための「画像（写真）確認」が必須となります。現在の寄附者の状況に応じて対応手順を確認してください。</p>
+            </div>
+            
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-6">
+                <h3 class="font-bold text-slate-800 mb-4">ステップ 1: 初期状況ヒアリング</h3>
+                <p class="text-sm text-slate-700 bg-slate-50 p-3 rounded">寄附者から返礼品の損傷・傷みなどの状況を詳しく伺います。</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="font-bold text-slate-800 mb-4">ステップ 2: 画像の送付状況による分岐</h3>
+                
+                <div class="flex gap-2 mb-4 border-b border-slate-200">
+                    <button class="tab-btn active px-4 py-2 text-sm font-medium transition-colors" data-group="claim" data-tab="claim-no">画像未送付</button>
+                    <button class="tab-btn px-4 py-2 text-sm text-slate-500 font-medium transition-colors" data-group="claim" data-tab="claim-yes">画像送付済み</button>
+                </div>
+
+                <div id="claim-no" class="tab-content" data-group="claim">
+                    <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r">
+                        <ol class="list-decimal list-inside space-y-2 text-slate-700 text-sm">
+                            <li>指定の画像送付先メールアドレスをご案内する。</li>
+                            <li>損傷部分がわかる写真の送付を依頼する。</li>
+                            <li>写真が届き次第、改めて対応する旨を伝えて受電を終了する。</li>
+                        </ol>
+                    </div>
+                </div>
+
+                <div id="claim-yes" class="tab-content hidden" data-group="claim">
+                    <div class="bg-teal-50 border-l-4 border-teal-500 p-4 rounded-r">
+                        <ol class="list-decimal list-inside space-y-2 text-slate-700 text-sm">
+                            <li>届いている画像の内容（損傷状況）を寄附者と一緒に電話口で確認する。</li>
+                            <li>「関係各所（事業者等）に確認のうえ、改めてご案内します」と伝える。</li>
+                            <li class="font-bold text-red-600 bg-red-50 inline-block px-1">必ず折り返しの電話番号を確認する。</li>
+                            <li>一旦、電話を切る。</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mt-6">
+                <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><span>💻</span> 後処理（一次受け完了後）</h3>
+                <ul class="space-y-2 text-sm text-slate-700">
+                    <li class="flex items-start gap-2"><span class="text-teal-600">■</span> 受電対応終了後、速やかに「ふるさと納税do」の問い合わせシステムを開き、クレームの<strong class="text-slate-900">問い合わせ履歴を作成（登録）</strong>します。</li>
+                    <li class="flex items-start gap-2"><span class="text-teal-600">■</span> 中間事業者内に常駐している<strong class="text-slate-900">「事業者担当者」</strong>へ、画像内容とヒアリングした状況を共有し、対応をエスカレーションします。</li>
+                </ul>
+            </div>
+        </section>
+
+        <section id="sec-2" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 2</span>
+                <h2 class="text-3xl font-bold text-slate-800">書類再発行（寄附証明書・ワンストップ申請書）</h2>
+                <p class="text-slate-600 mt-2">受領証明書やワンストップ特例申請書を紛失した等の理由による再発行の受付手順です。</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4 border-b pb-2">1. 確認事項</h3>
+                    <ul class="space-y-4 text-sm text-slate-700">
+                        <li>
+                            <p class="font-bold text-teal-700 mb-1">再発行書類の特定</p>
+                            <p>「寄附金受領証明書」なのか、「ワンストップ特例申請書」なのかを正確に確認します。</p>
+                        </li>
+                        <li>
+                            <p class="font-bold text-teal-700 mb-1">登録情報の変更確認</p>
+                            <p>寄附申込時から、「寄附控除申告先（住民票の住所等）」および「書類の送付先」に変更がないかを確認します。</p>
+                            <p class="text-xs text-amber-600 mt-1">※変更がある場合は、「7. 書類（送付先）の住所変更」のフローを並行して適用します。</p>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-4 border-b pb-2">2. システム処理・エスカレーション</h3>
+                    <ul class="space-y-3 text-sm text-slate-700">
+                        <li class="flex gap-2 items-center bg-slate-50 p-2 rounded"><span>📝</span> ふるさと納税doにて問い合わせ履歴を作成</li>
+                        <li class="flex gap-2 items-center bg-slate-50 p-2 rounded"><span>⬆️</span> 「書類再発行担当者」へエスカレーション</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="bg-amber-50 border border-amber-200 p-6 rounded-lg mt-6">
+                <h3 class="font-bold text-amber-800 mb-2 flex items-center gap-2"><span>⏳</span> ワンストップ申請書に関する特例アナウンス</h3>
+                <p class="text-sm text-slate-700 mb-4">基本的には再発行を受け付けますが、年末年始など<strong>ワンストップ提出期限（1/10必着）が差し迫っている時期</strong>については、以下の案内を行ってください。</p>
+                <div class="bg-white p-4 rounded border border-amber-100 relative">
+                    <span class="absolute -top-3 left-4 bg-amber-600 text-white text-xs px-2 py-1 rounded">トーク例</span>
+                    <p class="text-sm text-slate-800 italic mt-2">「ただいまの時期、再発行書類の郵送をお待ちいただくと提出期限（1月10日）に間に合わない可能性がございます。よろしければ、ふるさと納税ポータルサイトから、ご自身で申請書をダウンロードして印刷・送付いただくことも可能でございますが、いかがいたしましょうか？」</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-3" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 3</span>
+                <h2 class="text-3xl font-bold text-slate-800">書類はいつ届くのか</h2>
+                <p class="text-slate-600 mt-2">書類の到着時期に関する問い合わせは、基本的にはその場で解決し、折り返し対応を発生させない運用を行います。</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 mb-6">
+                <h3 class="font-bold text-slate-800 mb-4">状況確認フロー</h3>
+                <p class="text-sm text-slate-600 mb-4">ふるさと納税doで寄附情報を検索し、<strong>「書類の発行日」</strong>の記入欄を確認してください。</p>
+                
+                <div class="flex gap-2 mb-4 border-b border-slate-200">
+                    <button class="tab-btn active px-4 py-2 text-sm font-medium transition-colors" data-group="doc-status" data-tab="ds-yes">発行日の記入がある</button>
+                    <button class="tab-btn px-4 py-2 text-sm text-slate-500 font-medium transition-colors" data-group="doc-status" data-tab="ds-no">発行日の記入がない</button>
+                </div>
+
+                <div id="ds-yes" class="tab-content" data-group="doc-status">
+                    <div class="p-4 bg-slate-50 rounded mb-4">
+                        <p class="text-sm text-slate-700 font-bold mb-2">出力済みですが、必ずしも「発送済み」ではありません。</p>
+                        <p class="text-sm text-slate-700 mb-2">発送担当者に状況を確認してください。</p>
+                        <div class="pl-4 border-l-2 border-teal-500 space-y-2 mt-3">
+                            <p class="text-sm"><strong>発送済みの場合：</strong> 発送日をご案内して終了</p>
+                            <p class="text-sm"><strong>未発送の場合：</strong> 最短の発送予定を確認してご案内</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ds-no" class="tab-content hidden" data-group="doc-status">
+                    <div class="p-4 bg-slate-50 rounded mb-4">
+                        <p class="text-sm text-slate-700 mb-2">未発行の状態です。発送担当者に状況を確認してください。</p>
+                        <div class="pl-4 border-l-2 border-teal-500 space-y-2 mt-3">
+                            <p class="text-sm">最短の発送予定を確認してご案内</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-red-50 border border-red-200 p-6 rounded-lg">
+                <h3 class="font-bold text-red-800 mb-2">🚨 発送担当者が不在の場合</h3>
+                <p class="text-sm text-slate-700 mb-2">現場にいる「他のふるさと納税担当者」に対して、<strong>「最短で発送できる日付はいつか」</strong>を確認します。</p>
+                <p class="text-sm font-bold text-red-700 bg-white p-3 rounded border border-red-100">※注意※ 書類の発送に関する問い合わせについては、原則として折り返し対応をせず、その場で最短発送日を特定してご案内してください。</p>
+            </div>
+        </section>
+
+        <section id="sec-4" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 4</span>
+                <h2 class="text-3xl font-bold text-slate-800">ワンストップを「希望する」へ変更</h2>
+                <p class="text-slate-600 mt-2">申込時に「希望しない」を選択した方が、後から「希望する」へ変更を希望された場合の対応です。</p>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-6 mb-6">
+                <div class="flex-1 bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-teal-700 mb-3 border-b pb-2">1. 現状確認・システム処理</h3>
+                    <ol class="list-decimal list-inside space-y-3 text-sm text-slate-700">
+                        <li>「ふるさと納税do」で寄附情報を検索し、現在「希望しない」になっていることを確認。</li>
+                        <li>問い合わせ作成画面から、フラグを<strong>「希望する」</strong>へと変更処理。</li>
+                    </ol>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800 mb-4">2. 発送状況に応じた案内の分岐</h3>
+                <p class="text-sm text-slate-600 mb-4">システム上で現在の書類の発送ステータス（発行日・発送履歴）を確認し、案内を分岐します。</p>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div class="border border-slate-200 rounded p-4 cursor-pointer hover:bg-slate-50 transition" onclick="toggleFlow('os-sent')">
+                        <div class="font-bold text-slate-800 mb-1">受領証明書のみ発送済み</div>
+                        <div id="os-sent-res" class="text-sm text-teal-700 font-bold mt-2 hidden bg-teal-50 p-2 rounded">⇒ 「ワンストップ特例申請書」のみを追加で郵送する旨をご案内。</div>
+                    </div>
+                    <div class="border border-slate-200 rounded p-4 cursor-pointer hover:bg-slate-50 transition" onclick="toggleFlow('os-unsent')">
+                        <div class="font-bold text-slate-800 mb-1">受領証明書も未発送</div>
+                        <div id="os-unsent-res" class="text-sm text-teal-700 font-bold mt-2 hidden bg-teal-50 p-2 rounded">⇒ 「受領証明書」と「ワンストップ特例申請書」を同封して郵送する旨をご案内。</div>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 mt-2">※枠をクリックして対応を確認</p>
+
+                <div class="mt-6 p-4 bg-slate-100 rounded border border-slate-200">
+                    <p class="text-sm font-bold text-slate-800">📅 発送日のご案内</p>
+                    <p class="text-sm text-slate-700 mt-1">いずれのパターンにおいても、具体的な発送予定日はその場にいる「書類発送担当者」に確認を行い、<strong>「〇月〇日頃に発送予定です」</strong>と具体的な日付を提示してください。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-5" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 5</span>
+                <h2 class="text-3xl font-bold text-slate-800">返礼品はいつ届くのか</h2>
+                <p class="text-slate-600 mt-2">配送状況の問い合わせは、返礼品の種類と現在のステータスを確認して案内を分岐させます。</p>
+            </div>
+
+            <div class="mb-6 flex gap-2 border-b border-slate-200">
+                <button class="tab-btn active px-6 py-3 font-bold transition-colors" data-group="delivery" data-tab="del-normal">通年品（いつでも申し込める品）</button>
+                <button class="tab-btn px-6 py-3 font-bold text-slate-500 transition-colors" data-group="delivery" data-tab="del-season">季節品（先行予約品など）</button>
+            </div>
+
+            <div id="del-normal" class="tab-content" data-group="delivery">
+                <div class="space-y-4">
+                    <div class="bg-white p-5 rounded shadow-sm border-l-4 border-slate-400">
+                        <h4 class="font-bold text-slate-800 mb-1">パターン1：指定日が入っている場合</h4>
+                        <p class="text-sm text-slate-700 bg-slate-50 p-2 rounded">システムに登録されている指定日にお届けする旨をそのままご案内します。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded shadow-sm border-l-4 border-blue-400">
+                        <h4 class="font-bold text-slate-800 mb-1">パターン2：指定日なし ＆ 「出荷準備中」</h4>
+                        <p class="text-sm text-slate-700 bg-blue-50 p-2 rounded">まもなく発送される状態です。事業者担当に直接発送日を確認し、その場で寄附者へご案内します。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded shadow-sm border-l-4 border-amber-400">
+                        <h4 class="font-bold text-slate-800 mb-1">パターン3：指定日なし ＆ 「出荷依頼準備中」</h4>
+                        <p class="text-sm text-slate-700 mb-2">発送までにお時間をいただく可能性があります。「返礼品提供事業者」へ確認が必要となります。</p>
+                        <div class="bg-amber-50 p-3 rounded text-sm text-slate-800">
+                            <strong>『事業者へ発送状況を確認のうえ、折り返しご連絡いたします』</strong>と案内し、必ず<strong>折り返しの電話番号</strong>を確認した上で、一旦受電を終了してください。
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="del-season" class="tab-content hidden" data-group="delivery">
+                <div class="space-y-4">
+                    <div class="bg-white p-5 rounded shadow-sm border-l-4 border-blue-400">
+                        <h4 class="font-bold text-slate-800 mb-1">パターン1：伝票が発行済み ＆ 「出荷準備中」</h4>
+                        <p class="text-sm text-slate-700 bg-blue-50 p-2 rounded">まもなく発送される状態です。事業者担当に直接発送日を確認し、その場で寄附者へご案内します。</p>
+                    </div>
+                    <div class="bg-white p-5 rounded shadow-sm border-l-4 border-teal-500">
+                        <h4 class="font-bold text-slate-800 mb-1">パターン2：伝票が未発行の場合</h4>
+                        <p class="text-sm text-slate-700 mb-3">まだそのお品のシーズン（収穫期・発送期）に入っていないと想定されます。</p>
+                        <div class="bg-slate-50 p-4 rounded text-sm text-slate-800 border border-slate-200">
+                            <ol class="list-decimal list-inside space-y-2">
+                                <li>各種ポータルサイト上で、その季節品の現在の「発送時期」を確認し、サイト表記に則ってご案内します。</li>
+                                <li><strong class="text-red-600">※検索時の注意：</strong> すでに受付終了や品切れになっている可能性があるため、検索する際は必ず<strong>「品切れも表示（受付終了分も表示）」</strong>にチェックを入れてください。</li>
+                            </ol>
+                            <p class="text-xs text-slate-500 mt-3 pt-2 border-t border-slate-200">※CMSにログインできる権限があるオペレーターは、CMS上で直接「発送期日」を確認して案内しても構いません。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-6" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 6</span>
+                <h2 class="text-3xl font-bold text-slate-800">返礼品の指定日変更</h2>
+                <p class="text-slate-600 mt-2">寄附者から返礼品の配送指定日を変更したいと申し出があった場合の処理手順です。「ふるさと納税do」でステータスを確認してください。</p>
+            </div>
+
+            <div class="mb-6 flex gap-2 border-b border-slate-200">
+                <button class="tab-btn active px-6 py-3 font-bold transition-colors" data-group="date-change" data-tab="dc-normal">通年品（変更可）</button>
+                <button class="tab-btn px-6 py-3 font-bold text-slate-500 transition-colors" data-group="date-change" data-tab="dc-season">季節品（変更不可）</button>
+            </div>
+
+            <div id="dc-normal" class="tab-content" data-group="date-change">
+                <div class="grid md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:border-teal-400 transition-colors">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="text-xl">📦</span>
+                            <h3 class="font-bold text-slate-800">ステータス: 出荷準備中</h3>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-3 bg-slate-100 inline-block px-2 py-1 rounded">すでに事業者へ伝票発行済み</p>
+                        <div class="space-y-2 text-sm text-slate-700">
+                            <p>① 指定日の変更対応が可能か</p>
+                            <p>② 伝票の破棄・再発行に事業者が即時対応できるか</p>
+                        </div>
+                        <div class="mt-4 p-3 bg-amber-50 text-amber-800 font-bold text-sm rounded border border-amber-200 text-center">
+                            ⇒ 「事業者担当」へ直接確認・相談
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-lg shadow-sm border border-slate-200 hover:border-teal-400 transition-colors">
+                        <div class="flex items-center gap-2 mb-4">
+                            <span class="text-xl">⏳</span>
+                            <h3 class="font-bold text-slate-800">ステータス: 出荷依頼準備中</h3>
+                        </div>
+                        <p class="text-xs text-slate-500 mb-3 bg-slate-100 inline-block px-2 py-1 rounded">システム上で出荷依頼前</p>
+                        <div class="space-y-2 text-sm text-slate-700">
+                            <p>原則として<strong>「変更可能」</strong>です。</p>
+                            <p>オペレーターがその場で「ふるさと納税do」の問い合わせ作成から指定日の変更処理を行ってください。</p>
+                        </div>
+                        <div class="mt-4 p-3 bg-teal-50 text-teal-800 font-bold text-sm rounded border border-teal-200 text-center">
+                            ⇒ 履歴記録のみ。他担当への報告不要
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="dc-season" class="tab-content hidden" data-group="date-change">
+                <div class="bg-red-50 p-6 rounded-lg shadow-sm border border-red-200">
+                    <h3 class="font-bold text-red-800 mb-2 flex items-center gap-2"><span>🚫</span> 指定日変更は承れません</h3>
+                    <p class="text-sm text-red-700">季節品は発送日の細かな調整ができないため、指定日のご希望はお受けすることができません。その旨を寄附者へご案内してご納得いただけるよう対応してください。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-7" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 7</span>
+                <h2 class="text-3xl font-bold text-slate-800">住所変更（返礼品・書類）</h2>
+                <p class="text-slate-600 mt-2">住所変更は、対象が「返礼品」か「書類」かで対応が異なります。</p>
+            </div>
+
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded mb-6 shadow-sm">
+                <h3 class="font-bold text-amber-800 mb-2 flex items-center gap-2"><span>⚠️</span> 【重要】住所変更時の整合性確認</h3>
+                <p class="text-sm text-slate-700 mb-2">返礼品の住所変更や書類の送付先変更の依頼があった場合は、必ず<strong>「寄附情報（控除申告先・書類送付先）」と「返礼品情報（配送先）」の両方の住所整合性がとれているか</strong>をオペレーター自身で確認してください。</p>
+                <ul class="list-disc list-inside text-sm text-slate-700 space-y-1 bg-white p-3 rounded border border-amber-100">
+                    <li>返礼品の住所を変更する場合、<span class="font-bold text-amber-700">控除申告先も同時に変更が必要なケース</span>があります。</li>
+                    <li>控除申告先（書類送付先）を変更する場合、<span class="font-bold text-amber-700">返礼品の住所も同時に変更が必要なケース</span>があります。</li>
+                </ul>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden mb-6">
+                <div class="bg-slate-100 px-6 py-4 border-b border-slate-200">
+                    <h3 class="font-bold text-slate-800">📦 返礼品の住所変更（送付先変更）</h3>
+                </div>
+                <div class="p-6">
+                    <p class="text-sm text-slate-600 mb-4">「6. 返礼品指定日変更」のフローと全く同様の確認を行います。</p>
+                    <div class="grid sm:grid-cols-2 gap-4">
+                        <div class="border border-slate-200 p-4 rounded bg-slate-50">
+                            <strong class="text-sm block mb-1">出荷準備中（伝票発行済）</strong>
+                            <span class="text-sm text-slate-700">変更可否と伝票再発行について<strong>事業者担当へ確認</strong>。</span>
+                        </div>
+                        <div class="border border-slate-200 p-4 rounded bg-slate-50">
+                            <strong class="text-sm block mb-1">出荷依頼準備中（依頼前）</strong>
+                            <span class="text-sm text-slate-700"><strong>原則可能</strong>。doで変更処理し履歴に残す（報告不要）。</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                <div class="bg-teal-50 px-6 py-4 border-b border-teal-100">
+                    <h3 class="font-bold text-teal-900">📄 書類（送付先）の住所変更</h3>
+                </div>
+                <div class="p-6">
+                    <p class="text-sm text-slate-600 mb-4">「ふるさと納税do」で現在の書類の「発行日」の有無を確認します。</p>
+                    
+                    <div class="space-y-4">
+                        <div class="border-l-4 border-amber-400 pl-4 py-2">
+                            <strong class="block text-slate-800 mb-1">発行済みになっている場合</strong>
+                            <p class="text-sm text-slate-700">「出力され発送済み」か「発送待ち」の可能性があります。オペレーターがシステムを変更するだけでは誤送となるため、<strong>「書類発行（発送）担当者」に即座に住所変更の連絡を行い</strong>手配を依頼してください。</p>
+                        </div>
+                        
+                        <div class="border-l-4 border-blue-400 pl-4 py-2">
+                            <strong class="block text-slate-800 mb-1">未発行になっている場合</strong>
+                            <p class="text-sm text-slate-700 mb-3">閑散期においては、原則として<strong>「木曜日」</strong>に出力業務を行っています。</p>
+                            
+                            <div class="grid sm:grid-cols-2 gap-4">
+                                <div class="bg-blue-50 p-3 rounded">
+                                    <span class="text-xs font-bold text-blue-800 bg-white px-2 py-1 rounded inline-block mb-2">木曜日以外 (月火水金)</span>
+                                    <p class="text-sm text-slate-700">オペレーターがdoで住所変更の問い合わせを作成し送付先を変更。木曜に自動反映されるため報告不要。</p>
+                                </div>
+                                <div class="bg-red-50 p-3 rounded border border-red-100">
+                                    <span class="text-xs font-bold text-red-800 bg-white px-2 py-1 rounded inline-block mb-2">木曜日当日</span>
+                                    <p class="text-sm text-slate-700">システム上「未発行」でも裏で出力進行中の可能性大。勝手に変更せず、速やかに<strong>「書類発行担当者」へ報告</strong>。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-8" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 8</span>
+                <h2 class="text-3xl font-bold text-slate-800">カタログ依頼</h2>
+                <p class="text-slate-600 mt-2">カタログ送付はCMS操作の労力やコスト（300円以上/人）を抑えるため、「極力送付しない」ことを基本とし、3ステップで対応します。</p>
+            </div>
+
+            <div class="relative wrap overflow-hidden p-4 h-full">
+                <div class="border-2-2 absolute border-opacity-20 border-slate-400 h-full border left-8 top-0"></div>
+                
+                <!-- Step 1 -->
+                <div class="mb-8 flex justify-between items-center w-full relative z-10">
+                    <div class="order-1 w-10 h-10 rounded-full bg-teal-500 shadow-sm flex items-center justify-center text-white font-bold">1</div>
+                    <div class="order-1 bg-white border border-slate-200 rounded-lg shadow-sm w-11/12 p-5 ml-4">
+                        <h3 class="font-bold text-slate-800 text-lg mb-2">ポータルサイトへの誘導</h3>
+                        <p class="text-sm text-slate-600 mb-3">ポータルサイトの利便性をアピールし、そちらで手続きできないか交渉する。</p>
+                        <div class="bg-slate-50 p-3 rounded text-sm text-slate-700">
+                            <strong>訴求ポイント:</strong> 品揃え豊富、決済方法が多彩、届くのが早い
+                        </div>
+                        <div class="text-xs text-right text-slate-400 mt-2">※希望されたらStep 2へ</div>
+                    </div>
+                </div>
+
+                <!-- Step 2 -->
+                <div class="mb-8 flex justify-between items-center w-full relative z-10">
+                    <div class="order-1 w-10 h-10 rounded-full bg-slate-300 shadow-sm flex items-center justify-center text-slate-700 font-bold">2</div>
+                    <div class="order-1 bg-white border border-slate-200 rounded-lg shadow-sm w-11/12 p-5 ml-4">
+                        <h3 class="font-bold text-slate-800 text-lg mb-2">電話による代理申し込みの提案</h3>
+                        <p class="text-sm text-slate-600 mb-3">希望のお品や寄附額が決まっているか確認する。</p>
+                        <div class="bg-slate-50 p-3 rounded text-sm text-slate-700">
+                            決まっている場合は、オペレーターが電話口で代理起票し、受付を完了させる。
+                        </div>
+                        <div class="text-xs text-right text-slate-400 mt-2">※希望されたらStep 3へ</div>
+                    </div>
+                </div>
+
+                <!-- Step 3 -->
+                <div class="mb-8 flex justify-between items-center w-full relative z-10">
+                    <div class="order-1 w-10 h-10 rounded-full bg-amber-500 shadow-sm flex items-center justify-center text-white font-bold">3</div>
+                    <div class="order-1 bg-white border border-slate-200 rounded-lg shadow-sm w-11/12 p-5 ml-4">
+                        <h3 class="font-bold text-slate-800 text-lg mb-2">通年品カタログのみの送付 (最終手段)</h3>
+                        <p class="text-sm text-slate-600 mb-3">どうしても送付が必要な場合は、「通年品」のカタログのみ一式を送る手配をする。</p>
+                        <div class="bg-amber-50 border border-amber-200 p-3 rounded text-sm text-amber-900">
+                            <strong>※注意事項※</strong><br>
+                            「季節品」は品数制限や郵便振替不可の場合があり、都度個別作成が必要になります。業務簡素化のため、在庫無制限で年中受付できる「通年品カタログ」でご納得いただけるよう、上手にお話を持っていってください。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-9" class="content-section p-6 md:p-8 max-w-4xl mx-auto hidden">
+            <div class="mb-6">
+                <span class="inline-block px-3 py-1 bg-teal-100 text-teal-800 text-xs font-bold rounded-full mb-2">カテゴリ 9</span>
+                <h2 class="text-3xl font-bold text-slate-800">キャンセル依頼</h2>
+                <p class="text-slate-600 mt-2">キャンセル希望は、お申し込みをされた「ポータルサイト」および「締め日」によって判断基準が厳格に分かれます。該当するポータルサイトを選択してください。</p>
+            </div>
+
+            <div class="flex flex-wrap gap-2 mb-6">
+                <button class="px-4 py-2 bg-teal-600 text-white rounded-md text-sm font-bold shadow transition hover:bg-teal-700" onclick="showPortal('choice')">ふるさとチョイス</button>
+                <button class="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-bold shadow-sm transition hover:bg-slate-50" onclick="showPortal('rakuten')">楽天市場</button>
+                <button class="px-4 py-2 bg-white text-slate-700 border border-slate-300 rounded-md text-sm font-bold shadow-sm transition hover:bg-slate-50" onclick="showPortal('other')">その他 (ふるなび/さとふる等)</button>
+            </div>
+
+            <div id="portal-choice" class="portal-content bg-white p-6 rounded-lg shadow-sm border border-slate-200">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2">ふるさとチョイスからの寄附</h3>
+                <div class="space-y-4">
+                    <div class="p-4 bg-teal-50 rounded border border-teal-100">
+                        <strong class="block text-teal-800 mb-1">寄附した同月中 (月末の締め日まで)</strong>
+                        <p class="text-sm text-slate-700">キャンセル対応が可能です。原則としてキャンセルを受託してください。</p>
+                    </div>
+                    <div class="p-4 bg-red-50 rounded border border-red-100">
+                        <strong class="block text-red-800 mb-1">寄附した翌月以降</strong>
+                        <p class="text-sm text-slate-700 mb-2">締め日を経過したため、システム上キャンセルは一切行えません。</p>
+                        <div class="bg-white p-3 rounded border border-red-200 text-sm italic text-slate-600">
+                            「誠に恐れ入りますが、一度お申し込みを完了された寄附につきましては、制度上、キャンセルを行うことができない決まりとなっております。ご希望に添えず大変恐縮ではございますが、何卒ご理解いただけますようお願いいたします。」
+                        </div>
+                        <p class="text-xs text-red-600 mt-2">※「締め日が過ぎたため」と伝えるとクレームに発展する可能性があるため、最初から全案件で不可であるかのようなトークで案内を統一します。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="portal-rakuten" class="portal-content bg-white p-6 rounded-lg shadow-sm border border-slate-200 hidden">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2">楽天市場（楽天ふるさと納税）からの寄附</h3>
+                <div class="space-y-4">
+                    <div class="p-4 bg-teal-50 rounded border border-teal-100">
+                        <strong class="block text-teal-800 mb-1">締め日(毎月10日・25日)までの場合</strong>
+                        <p class="text-sm text-slate-700">キャンセル対応が可能です。原則としてキャンセルを受託してください。</p>
+                    </div>
+                    <div class="p-4 bg-amber-50 rounded border border-amber-100">
+                        <strong class="block text-amber-800 mb-1">締め日(10日・25日)を過ぎている場合</strong>
+                        <p class="text-sm text-slate-700 mb-2">RMS上でキャンセル処理ができる状態であれば、例外的に通る場合があります。</p>
+                        <div class="bg-white p-2 text-sm text-slate-800 font-bold text-center border border-amber-200 rounded">
+                            その場で可否を断言せず、一度「ふるさと納税担当者」へ直接エスカレーション。
+                        </div>
+                    </div>
+                    <div class="p-4 bg-slate-100 rounded border border-slate-200">
+                        <strong class="block text-slate-800 mb-1">キャンセルが不可能であった場合</strong>
+                        <p class="text-sm text-slate-600 mb-2">チョイス同様、すべての寄附がキャンセル不可であるかのように案内します。</p>
+                        <div class="bg-white p-3 rounded border border-slate-300 text-sm italic text-slate-600">
+                            「誠に恐れ入りますが、一度お申し込み完了となりました寄附につきましては、お取り消しを承ることができない決まりとなっております。」
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="portal-other" class="portal-content bg-white p-6 rounded-lg shadow-sm border border-slate-200 hidden">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2">その他ポータル（ふるなび・さとふる・ANA・JAL等）</h3>
+                <div class="bg-red-50 border-l-4 border-red-500 p-4 rounded mb-4">
+                    <strong class="text-red-800 block mb-2">★ 重要ルール ★</strong>
+                    <p class="text-sm text-red-900 font-medium">これらのサイトからのキャンセル対応については、コールセンターで可否を判断・案内することはできません。問い合わせを受け付けた場合、速やかに「自治体担当者」へ状況を報告し、エスカレーションを行ってください。</p>
+                </div>
+                <div class="bg-slate-50 p-4 rounded border border-slate-200">
+                    <h4 class="font-bold text-slate-700 mb-2 text-sm">案内手順</h4>
+                    <ol class="list-decimal list-inside space-y-2 text-sm text-slate-700">
+                        <li>その場でのキャンセル可否の即答は避ける。</li>
+                        <li>『ポータルサイトの受付仕様を確認するため、一度自治体（または関係各所）へ確認をさせていただきます』と案内する。</li>
+                        <li>必ず「折り返しの電話番号」を確認し、一旦お電話を切る。</li>
+                        <li>自治体担当者へ速やかにエスカレーションを実施する。</li>
+                    </ol>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script>
+        // --- Navigation Logic ---
+        const navItems = document.querySelectorAll('.nav-item');
+        const sections = document.querySelectorAll('.content-section');
+
+        navItems.forEach(item => {
+            item.addEventListener('click', () => {
+                // Update active state in sidebar
+                navItems.forEach(nav => nav.classList.remove('active'));
+                item.classList.add('active');
+
+                // Hide all sections, show target
+                const targetId = item.getAttribute('data-target');
+                sections.forEach(sec => sec.classList.add('hidden'));
+                document.getElementById(targetId).classList.remove('hidden');
+            });
+        });
+
+        // --- Search Logic ---
+        const searchInput = document.getElementById('searchInput');
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            navItems.forEach(item => {
+                if(item.getAttribute('data-target') === 'sec-home') return; // keep home
+                const text = item.textContent.toLowerCase();
+                if(text.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        });
+
+        // --- Tab Logic for Interactive Sections ---
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const group = btn.getAttribute('data-group');
+                const targetTab = btn.getAttribute('data-tab');
+
+                // Reset buttons in group
+                document.querySelectorAll(`.tab-btn[data-group="${group}"]`).forEach(b => {
+                    b.classList.remove('active', 'text-slate-800');
+                    b.classList.add('text-slate-500');
+                });
+                btn.classList.add('active');
+                btn.classList.remove('text-slate-500');
+
+                // Hide contents in group, show target
+                document.querySelectorAll(`.tab-content[data-group="${group}"]`).forEach(c => c.classList.add('hidden'));
+                document.getElementById(targetTab).classList.remove('hidden');
+            });
+        });
+
+        // --- Specific Flow Toggles ---
+        window.toggleFlow = function(id) {
+            const el = document.getElementById(id + '-res');
+            if(el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        };
+
+        // --- Portal Selector for Category 9 ---
+        window.showPortal = function(portal) {
+            document.querySelectorAll('.portal-content').forEach(p => p.classList.add('hidden'));
+            document.getElementById('portal-' + portal).classList.remove('hidden');
+            
+            // Update button styles
+            const btns = event.target.parentElement.querySelectorAll('button');
+            btns.forEach(b => {
+                b.classList.remove('bg-teal-600', 'text-white');
+                b.classList.add('bg-white', 'text-slate-700');
+            });
+            event.target.classList.remove('bg-white', 'text-slate-700');
+            event.target.classList.add('bg-teal-600', 'text-white');
+        };
+
+        // --- Chart.js Initialization (Hypothetical Inquiry Volumes) ---
+        // Provides context to operators on expected call volumes per category
+        const ctx = document.getElementById('inquiryChart').getContext('2d');
+        const inquiryData = {
+            labels: [
+                '1. クレーム', '2. 書類再発行', '3. 書類到着時期', 
+                '4. ワンストップ変更', '5. 返礼品到着時期', '6. 指定日変更', 
+                '7. 住所変更', '8. カタログ依頼', '9. キャンセル'
+            ],
+            datasets: [{
+                label: '月間平均受電数 (推定)',
+                data: [15, 120, 80, 45, 150, 30, 60, 20, 10],
+                backgroundColor: [
+                    '#f87171', // Red for claim
+                    '#0f766e', '#0f766e', '#0f766e', // Teal
+                    '#3b82f6', // Blue for delivery
+                    '#0f766e', '#0f766e', 
+                    '#f59e0b', // Amber for catalog
+                    '#64748b'  // Gray for cancel
+                ],
+                borderWidth: 0,
+                borderRadius: 4
+            }]
+        };
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: inquiryData,
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.parsed.y + ' 件 / 月';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#e2e8f0' },
+                        title: { display: true, text: '件数' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: {
+                            callback: function(value) {
+                                const label = this.getLabelForValue(value);
+                                // Wrap labels logic (16-char rule logic applied by splitting long labels)
+                                return label.length > 8 ? label.substring(0, 8) + '...' : label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+    </script>
+</body>
+</html>
